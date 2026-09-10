@@ -1,0 +1,21 @@
+# Clinica Ejemplo
+
+> Clinica veterinaria en Sevilla especializada en razas braquicefalas.
+
+Este fichero sigue la propuesta llms.txt para orientar a los modelos de lenguaje sobre el contenido de este sitio.
+
+## Home
+
+- [Clinica Ejemplo](https://example.com/): Clinica veterinaria en Sevilla especializada en razas braquicefalas.
+
+## Servicios
+
+- [Servicios](https://example.com/servicios): Cirugia, diagnostico y urgencias.
+
+## Contenido y guias
+
+- [Como respira un bulldog](https://example.com/blog/primer-post): Que es el sindrome braquicefalo y cuando operar.
+
+## Contacto
+
+- [Contacto](https://example.com/contacto)

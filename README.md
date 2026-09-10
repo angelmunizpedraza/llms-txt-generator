@@ -1,83 +1,102 @@
 # llms-txt-generator
 
-Genera el fichero `llms.txt` de un sitio web a partir de su sitemap, para que ChatGPT, Claude, Perplexity y Google AI Overviews entiendan qué contenido tiene y cómo está organizado.
+**Build an `llms.txt` from a site's sitemap — and check the one you already published is not broken.**
 
-## El problema
+[![CI](https://github.com/angelmunizpedraza/llms-txt-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/angelmunizpedraza/llms-txt-generator/actions)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-`robots.txt` le dice a un rastreador qué **no** puede leer. No existe el equivalente para decirle a un modelo de lenguaje qué **sí** merece la pena leer.
+---
 
-Cuando alguien pregunta a ChatGPT por un servicio, el modelo tiene que deducir de qué va un sitio a partir de HTML lleno de menús, banners de cookies y scripts. La propuesta [llms.txt](https://llmstxt.org/) resuelve eso con un fichero en la raíz del dominio, en Markdown, que resume el sitio y enlaza su contenido relevante con contexto.
+## What `llms.txt` is
 
-Escribirlo a mano es viable con diez páginas. Con doscientas, no.
+A file at the root of a domain that works as the opposite of `robots.txt`: instead of blocking crawlers, it tells language models which content matters and how it is organised. A good one is a short, sectioned, linked map of the site with a one-line description per page — because the description is what a model quotes.
 
-## Qué hace
-
-1. Localiza los sitemaps del dominio (en `robots.txt` y en las rutas convencionales, resolviendo índices anidados).
-2. Extrae las URLs con su `lastmod`.
-3. Descarga cada página y saca título, meta description y, si no la hay, el `<h1>`.
-4. Clasifica cada URL en secciones (Servicios, Contenido y guías, Casos, Contacto…) según patrones de ruta.
-5. Escribe un `llms.txt` en Markdown, agrupado y priorizado.
-
-## Uso
+## Two commands
 
 ```bash
-pip install -r requirements.txt
-
-python generate_llms_txt.py https://ejemplo.com
-python generate_llms_txt.py https://ejemplo.com --max-urls 300 --output public/llms.txt
+llms-txt generate example.com --output llms.txt
+llms-txt validate llms.txt --base-url https://example.com --check-links
 ```
 
-| Opción | Por defecto | Para qué |
-|---|---|---|
-| `--output` / `-o` | `llms.txt` | Ruta del fichero generado |
-| `--max-urls` | `100` | Tope de URLs a analizar |
-| `--delay` | `0.3` | Segundos entre peticiones, para no saturar el servidor |
+`generate` reads `robots.txt`, follows every sitemap it declares (plus the conventional paths), walks sitemap indexes, drops duplicates, fetches each page for its title and description, groups the URLs into readable sections, and writes the file. `validate` is the half most tools skip.
 
-Después, sube el fichero a la raíz: `https://ejemplo.com/llms.txt`.
+## Why the validator exists
 
-## Ejemplo de salida
+Generating the file is easy. What costs traffic is publishing one that is quietly malformed, so here is what `validate` refuses:
 
-```markdown
-# Clínica Veterinaria Ejemplo
+| Severity | Check |
+|---|---|
+| error | The file is empty, or has no `# Title`, or has two |
+| error | No links at all — the file tells a model nothing |
+| error | A list item that is not a well-formed `- [label](url)` |
+| error | A relative link: a model resolving `/servicios` has nothing to resolve it against |
+| warning | A duplicate URL, an empty section, a link to another host, a link with no label |
+| warning | No `> summary` line under the title |
+| warning | Fewer than half the links carry a description |
+| optional | `--check-links` requests every URL and fails on anything that is not 200 |
 
-> Hospital veterinario en Sevilla con urgencias 24 h, cirugía y diagnóstico por imagen.
+`--strict` turns warnings into a failure too, so the whole thing can gate a deploy: exit `0` valid, `1` invalid, `2` bad input.
 
-Este fichero sigue la propuesta llms.txt para orientar a los modelos de lenguaje
-sobre el contenido de este sitio.
+## What `generate` does that a sitemap dump does not
+
+- **Sections instead of a flat list.** URLs are grouped into Home, Servicios, Productos y formación, Contenido y guías, Casos y proyectos, Sobre la organización, Contacto, Preguntas frecuentes and Legal, matched on both Spanish and English path patterns, and emitted in that priority order. A model reads top-down; the cookie policy should not be the first thing it sees.
+- **`noindex` pages are dropped** by default (`--keep-noindex` if you disagree). A page you told Google to ignore has no business being recommended to a model.
+- **The description falls back to the H1** when there is no meta description, rather than emitting a bare URL.
+- **The site name comes from the home title**, cut at the first separator, so you get `Clínica Ejemplo` and not `Clínica Ejemplo | Veterinaria en Sevilla | Inicio`.
+- **`--include` / `--exclude`** take regexes, for the usual "everything except `/tag/` and `/author/`".
+- **Politeness is not optional**: one session, a real user agent, and `--delay` between requests.
+
+## Install
+
+```bash
+pip install -e .
+```
+
+## Output
+
+```
+# Clínica Ejemplo
+
+> Clínica veterinaria en Sevilla especializada en razas braquicéfalas.
+
+Este fichero sigue la propuesta llms.txt para orientar a los modelos de
+lenguaje sobre el contenido de este sitio.
 
 ## Servicios
 
-- [Urgencias 24 horas](https://ejemplo.com/urgencias): Atención veterinaria de urgencia sin cita previa, todos los días del año.
-- [Cirugía](https://ejemplo.com/cirugia): Quirófano propio y equipo de anestesia monitorizada.
+- [Servicios](https://example.com/servicios): Cirugía, diagnóstico y urgencias.
 
 ## Contenido y guías
 
-- [Cómo detectar una torsión gástrica](https://ejemplo.com/blog/torsion-gastrica): Señales de alarma y qué hacer en las primeras horas.
+- [Cómo respira un bulldog](https://example.com/blog/primer-post): Qué es el síndrome braquicéfalo y cuándo operar.
 ```
 
-## Decisiones de diseño
+`examples/llms.txt` is that file in full; `llms-txt validate examples/llms.txt` returns clean, and CI checks that it still does.
 
-**Sitemap en lugar de rastreo propio.** Un crawler recursivo es más completo pero mucho más lento y agresivo con el servidor. El sitemap ya contiene las páginas que el sitio considera indexables, que es exactamente el conjunto que interesa.
+## In CI
 
-**Clasificación por patrones de ruta.** Se podría clasificar con un LLM, pero eso añade coste, latencia y una dependencia externa para un problema que las convenciones de URL resuelven bien en la mayoría de sitios. Los patrones están en `SECTION_LABELS`, al principio del fichero, y se amplían en una línea.
+```yaml
+- name: llms.txt must stay valid
+  run: llms-txt validate public/llms.txt --base-url https://example.com --strict
+```
 
-**Fallback al `<h1>`.** Muchas páginas no tienen meta description. Sin ese fallback, la mitad de las entradas saldrían sin contexto, que es justo lo que aporta valor al modelo.
+## Project layout
 
-**Límite de profundidad en índices anidados.** Los sitemaps pueden referenciarse en círculo. El corte a dos niveles evita el bucle infinito sin renunciar a la estructura habitual de índice → sitemaps por tipo.
+```
+llmstxt/
+  model.py      Page and SiteProfile
+  classify.py   path → section, and HTML fragment → clean text
+  sitemap.py    robots.txt, sitemap indexes, dedupe (no network: a reader is injected)
+  analyse.py    base URL → SiteProfile
+  render.py     SiteProfile → llms.txt
+  validate.py   llms.txt → findings
+  fetch.py      the only module that touches the network
+  cli.py        llms-txt generate / llms-txt validate
+tests/          52 tests, no network required
+```
 
-## Limitaciones conocidas
-
-- No ejecuta JavaScript, así que en sitios renderizados en cliente los títulos pueden venir vacíos.
-- La clasificación por patrones falla en sitios con URLs opacas (`/p/12345`).
-- No detecta contenido duplicado ni canonicals; incluye lo que diga el sitemap.
-
-## Requisitos
-
-Python 3.10 o superior y `requests`.
-
-## Licencia
-
-MIT
+The network lives in exactly one module and is injected everywhere else, which is why the whole suite runs offline in under a second.
 
 ## Related tools
 
@@ -86,3 +105,7 @@ Part of a set of nine open-source tools I use on client work — all Python, MIT
 [geo-check](https://github.com/angelmunizpedraza/geo-check) · [render-gap](https://github.com/angelmunizpedraza/render-gap) · [citeable](https://github.com/angelmunizpedraza/citeable) · [serp-to-ai-diff](https://github.com/angelmunizpedraza/serp-to-ai-diff) · [ai-visibility-tracker](https://github.com/angelmunizpedraza/ai-visibility-tracker) · [linkjuice](https://github.com/angelmunizpedraza/linkjuice) · [seo-audit](https://github.com/angelmunizpedraza/seo-audit) · [ga4-report](https://github.com/angelmunizpedraza/ga4-report)
 
 `geo-check` asks whether the AI crawlers are allowed in. `render-gap` asks whether anything was there when they arrived. `citeable` asks whether it was worth quoting.
+
+## Licence
+
+MIT — Ángel Muñiz Pedraza · [LinkedIn](https://www.linkedin.com/in/angel-muniz-seo) · angelhd029@gmail.com
