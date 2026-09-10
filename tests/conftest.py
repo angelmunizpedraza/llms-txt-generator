@@ -78,6 +78,21 @@ class FakeReader:
 
 
 @pytest.fixture()
+def robots_txt():
+    return ROBOTS
+
+
+@pytest.fixture()
+def sitemap_index():
+    return SITEMAP_INDEX
+
+
+@pytest.fixture()
+def sitemap_pages():
+    return SITEMAP_PAGES
+
+
+@pytest.fixture()
 def reader():
     return FakeReader()
 
