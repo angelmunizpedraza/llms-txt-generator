@@ -1,9 +1,8 @@
 from llmstxt.sitemap import collect, dedupe, parse_sitemap_xml, sitemaps_from_robots
-from tests.conftest import ROBOTS, SITEMAP_INDEX, SITEMAP_PAGES
 
 
-def test_robots_sitemap_lines_are_read_and_made_absolute():
-    found = sitemaps_from_robots(ROBOTS, "https://example.com")
+def test_robots_sitemap_lines_are_read_and_made_absolute(robots_txt):
+    found = sitemaps_from_robots(robots_txt, "https://example.com")
     assert found == ["https://example.com/sitemap.xml", "https://example.com/sitemap-extra.xml"]
 
 
@@ -11,8 +10,8 @@ def test_robots_without_sitemaps_returns_nothing():
     assert sitemaps_from_robots("User-agent: *\nDisallow:\n") == []
 
 
-def test_a_sitemap_index_is_recognised():
-    kind, entries = parse_sitemap_xml(SITEMAP_INDEX)
+def test_a_sitemap_index_is_recognised(sitemap_index):
+    kind, entries = parse_sitemap_xml(sitemap_index)
     assert kind == "index"
     assert [u for u, _ in entries] == [
         "https://example.com/sitemap-pages.xml",
@@ -20,8 +19,8 @@ def test_a_sitemap_index_is_recognised():
     ]
 
 
-def test_a_urlset_returns_urls_with_lastmod():
-    kind, entries = parse_sitemap_xml(SITEMAP_PAGES)
+def test_a_urlset_returns_urls_with_lastmod(sitemap_pages):
+    kind, entries = parse_sitemap_xml(sitemap_pages)
     assert kind == "urlset"
     assert entries[0] == ("https://example.com/", "2026-09-01")
     assert entries[1][1] == ""
